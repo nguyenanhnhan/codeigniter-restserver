@@ -197,6 +197,15 @@ abstract class REST_Controller extends CI_Controller
     {
         parent::__construct();
 
+        // disable XML Entity (security vulnerability)
+        libxml_disable_entity_loader(true);
+
+        // Check to see if this is CI 3.x
+        if(explode('.', CI_VERSION, 2)[0] < 3)
+        {
+            die('REST Server requires CodeIgniter 3.x');
+        }
+
         // Start the timer for how long the request takes
         $this->_start_rtime = microtime(TRUE);
 
@@ -1213,10 +1222,6 @@ abstract class REST_Controller extends CI_Controller
      */
     protected function _xss_clean($val, $process)
     {
-        if (CI_VERSION < 2) {
-            return $process ? $this->input->xss_clean($val) : $val;
-        }
-
         return $process ? $this->security->xss_clean($val) : $val;
     }
 

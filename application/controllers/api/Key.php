@@ -26,11 +26,10 @@ class Key extends REST_Controller {
         ];
 
     /**
-     * Key Create
      * Insert a key into the database
      *
-     * @access    public
-     * @return    void
+     * @access public
+     * @return void
      */
     public function index_put()
     {
@@ -45,27 +44,24 @@ class Key extends REST_Controller {
         if (self::_insert_key($key, ['level' => $level, 'ignore_limits' => $ignore_limits]))
         {
             $this->response([
-                'status' => 1,
+                'status' => TRUE,
                 'key' => $key
-            ], 201); // 201 = Created
+            ], REST_Controller::HTTP_CREATED); // CREATED (201) being the HTTP response code
         }
         else
         {
             $this->response([
-                'status' => 0,
+                'status' => FALSE,
                 'error' => 'Could not save the key'
-            ], 500); // 500 = Internal Server Error
+            ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR); // INTERNAL_SERVER_ERROR (500) being the HTTP response code
         }
     }
 
-    // --------------------------------------------------------------------
-
     /**
-     * Key Delete
      * Remove a key from the database to stop it working
      *
-     * @access    public
-     * @return    void
+     * @access public
+     * @return void
      */
     public function index_delete()
     {
@@ -76,8 +72,9 @@ class Key extends REST_Controller {
         {
             // It doesn't appear the key exists
             $this->response([
-                'error' => 'Invalid API Key'
-            ], 400); // 400 = Bad Request
+                'status' => FALSE,
+                'error' => 'Invalid API key'
+            ], REST_Controller::HTTP_BAD_REQUEST); // BAD_REQUEST (400) being the HTTP response code
         }
 
         // Destroy it
@@ -85,19 +82,16 @@ class Key extends REST_Controller {
 
         // Respond that the key was destroyed
         $this->response([
-            'status' => 1,
-            'success' => 'API Key was deleted'
-            ], 204); // 204 = Success, No Content
+            'status' => TRUE,
+            'success' => 'API key was deleted'
+            ], REST_Controller::HTTP_NO_CONTENT); // NO_CONTENT (204) being the HTTP response code
     }
 
-    // --------------------------------------------------------------------
-
     /**
-     * Update Key
      * Change the level
      *
-     * @access    public
-     * @return    void
+     * @access public
+     * @return void
      */
     public function level_post()
     {
@@ -109,35 +103,33 @@ class Key extends REST_Controller {
         {
             // It doesn't appear the key exists
             $this->response([
-                'error' => 'Invalid API Key'
-            ], 400); // 400 = Bad Request
+                'status' => FALSE,
+                'error' => 'Invalid API key'
+            ], REST_Controller::HTTP_BAD_REQUEST); // BAD_REQUEST (400) being the HTTP response code
         }
 
         // Update the key level
         if (self::_update_key($key, ['level' => $new_level]))
         {
             $this->response([
-                'status' => 1,
-                'success' => 'API Key was updated'
-            ], 200); // 200 = OK
+                'status' => TRUE,
+                'success' => 'API key was updated'
+            ], REST_Controller::HTTP_OK); // OK (200) being the HTTP response code
         }
         else
         {
             $this->response([
-                'status' => 0,
+                'status' => FALSE,
                 'error' => 'Could not update the key level'
-            ], 500); // 500 = Internal Server Error
+            ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR); // INTERNAL_SERVER_ERROR (500) being the HTTP response code
         }
     }
 
-    // --------------------------------------------------------------------
-
     /**
-     * Update Key
      * Change the level
      *
-     * @access    public
-     * @return    void
+     * @access public
+     * @return void
      */
     public function suspend_post()
     {
@@ -148,35 +140,33 @@ class Key extends REST_Controller {
         {
             // It doesn't appear the key exists
             $this->response([
-                'error' => 'Invalid API Key'
-            ], 400); // 400 = Bad Request
+                'status' => FALSE,
+                'error' => 'Invalid API key'
+            ], REST_Controller::HTTP_BAD_REQUEST); // BAD_REQUEST (400) being the HTTP response code
         }
 
         // Update the key level
         if (self::_update_key($key, ['level' => 0]))
         {
             $this->response([
-                'status' => 1,
+                'status' => TRUE,
                 'success' => 'Key was suspended'
-            ], 200); // 200 = OK
+            ], REST_Controller::HTTP_OK); // OK (200) being the HTTP response code
         }
         else
         {
             $this->response([
-                'status' => 0,
+                'status' => FALSE,
                 'error' => 'Could not suspend the user'
-            ], 500); // 500 = Internal Server Error
+            ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR); // INTERNAL_SERVER_ERROR (500) being the HTTP response code
         }
     }
 
-    // --------------------------------------------------------------------
-
     /**
-     * Regenerate Key
      * Remove a key from the database to stop it working
      *
-     * @access    public
-     * @return    void
+     * @access public
+     * @return void
      */
     public function regenerate_post()
     {
@@ -188,8 +178,9 @@ class Key extends REST_Controller {
         {
             // It doesn't appear the key exists
             $this->response([
-                'error' => 'Invalid API Key'
-            ], 400); // 400 = Bad Request
+                'status' => FALSE,
+                'error' => 'Invalid API key'
+            ], REST_Controller::HTTP_BAD_REQUEST); // BAD_REQUEST (400) being the HTTP response code
         }
 
         // Build a new key
@@ -202,20 +193,18 @@ class Key extends REST_Controller {
             self::_update_key($old_key, ['level' => 0]);
 
             $this->response([
-                'status' => 1,
+                'status' => TRUE,
                 'key' => $new_key
-            ], 201); // 201 = Created
+            ], REST_Controller::HTTP_CREATED); // CREATED (201) being the HTTP response code
         }
         else
         {
             $this->response([
-                'status' => 0,
+                'status' => FALSE,
                 'error' => 'Could not save the key'
-            ], 500); // 500 = Internal Server Error
+            ], REST_Controller::HTTP_INTERNAL_SERVER_ERROR); // INTERNAL_SERVER_ERROR (500) being the HTTP response code
         }
     }
-
-    // --------------------------------------------------------------------
 
     /* Helper Methods */
 
@@ -224,7 +213,13 @@ class Key extends REST_Controller {
         do
         {
             // Generate a random salt
-            $salt = mcrypt_create_iv(16, MCRYPT_DEV_URANDOM);
+            $salt = $this->security->get_random_bytes(64);
+
+            // If an error occurred, then fall back to the previous method
+            if ($salt === FALSE)
+            {
+				$salt = hash('sha256', time() . mt_rand());
+            }
             $new_key = substr($salt, 0, config_item('rest_key_length'));
         }
         while (self::_key_exists($new_key));
@@ -233,27 +228,25 @@ class Key extends REST_Controller {
         return $new_key;
     }
 
-    // --------------------------------------------------------------------
-
     /* Private Data Methods */
 
     private function _get_key($key)
     {
-        return $this->db->where(config_item('rest_key_column'), $key)->get(config_item('rest_keys_table'))->row();
+        return $this->db
+			->where(config_item('rest_key_column'), $key)
+			->get(config_item('rest_keys_table'))
+			->row();
     }
-
-    // --------------------------------------------------------------------
 
     private function _key_exists($key)
     {
-        return $this->db->where(config_item('rest_key_column'), $key)->count_all_results(config_item('rest_keys_table')) > 0;
+        return $this->db
+			->where(config_item('rest_key_column'), $key)
+			->count_all_results(config_item('rest_keys_table')) > 0;
     }
-
-    // --------------------------------------------------------------------
 
     private function _insert_key($key, $data)
     {
-
         $data[config_item('rest_key_column')] = $key;
         $data['date_created'] = function_exists('now') ? now() : time();
 
@@ -262,8 +255,6 @@ class Key extends REST_Controller {
             ->insert(config_item('rest_keys_table'));
     }
 
-    // --------------------------------------------------------------------
-
     private function _update_key($key, $data)
     {
         return $this->db
@@ -271,12 +262,11 @@ class Key extends REST_Controller {
             ->update(config_item('rest_keys_table'), $data);
     }
 
-    // --------------------------------------------------------------------
-
     private function _delete_key($key)
     {
         return $this->db
             ->where(config_item('rest_key_column'), $key)
             ->delete(config_item('rest_keys_table'));
     }
+
 }

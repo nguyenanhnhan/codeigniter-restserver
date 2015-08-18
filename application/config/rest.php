@@ -160,9 +160,9 @@ $config['auth_library_function'] = '';
 |
 | example:
 |
-|			$config['auth_override_class_method_http']['deals']['view']['get'] = 'none';
-|			$config['auth_override_class_method_http']['deals']['insert']['post'] = 'none';
-|			$config['auth_override_class_method_http']['deals']['*']['options'] = 'none';
+|            $config['auth_override_class_method_http']['deals']['view']['get'] = 'none';
+|            $config['auth_override_class_method_http']['deals']['insert']['post'] = 'none';
+|            $config['auth_override_class_method_http']['deals']['*']['options'] = 'none';
 */
 
 // ---Uncomment list line for the wildard unit test
@@ -352,7 +352,7 @@ $config['rest_key_name'] = 'X-API-KEY';
 |       `time` INT(11) NOT NULL,
 |       `rtime` FLOAT DEFAULT NULL,
 |       `authorized` VARCHAR(1) NOT NULL,
-|       `response_code` SMALLINT(3) NOT NULL,
+|       `response_code` smallint(3) DEFAULT '0',
 |       PRIMARY KEY (`id`)
 |   ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 |
@@ -477,3 +477,13 @@ $config['rest_ignore_http_accept'] = FALSE;
 |
 */
 $config['rest_ajax_only'] = FALSE;
+
+/*
+|--------------------------------------------------------------------------
+| REST Language File
+|--------------------------------------------------------------------------
+|
+| Language file to load from the language directory
+|
+*/
+$config['rest_language'] = 'english';

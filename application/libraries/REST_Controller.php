@@ -381,21 +381,7 @@ abstract class REST_Controller extends CI_Controller {
     {
         parent::__construct();
 
-        // Disable XML Entity (security vulnerability)
-        libxml_disable_entity_loader(TRUE);
-
-        // Check to see if PHP is equal to or greater than 5.4.x
-        if (is_php('5.4') === FALSE)
-        {
-            // CodeIgniter 3 is recommended for v5.4 or above
-            throw new Exception('Using PHP v'.PHP_VERSION.', though PHP v5.4 or greater is required');
-        }
-
-        // Check to see if this is CI 3.x
-        if (explode('.', CI_VERSION, 2)[0] < 3)
-        {
-            throw new Exception('REST Server requires CodeIgniter 3.x');
-        }
+        $this->preflight_checks();
 
         // Set the default value of global xss filtering. Same approach as CodeIgniter 3
         $this->_enable_xss = ($this->config->item('global_xss_filtering') === TRUE);
@@ -601,13 +587,35 @@ abstract class REST_Controller extends CI_Controller {
     }
 
     /**
+     * Checks to see if we have everything we need to run this library.
+     *
+     * @access protected
+     * @return Exception
+     */
+    protected function preflight_checks()
+    {
+        // Check to see if PHP is equal to or greater than 5.4.x
+        if (is_php('5.4') === FALSE)
+        {
+            // CodeIgniter 3 is recommended for v5.4 or above
+            throw new Exception('Using PHP v'.PHP_VERSION.', though PHP v5.4 or greater is required');
+        }
+
+        // Check to see if this is CI 3.x
+        if (explode('.', CI_VERSION, 2)[0] < 3)
+        {
+            throw new Exception('REST Server requires CodeIgniter 3.x');
+        }
+    }
+
+    /**
      * Requests are not made to methods directly, the request will be for
      * an "object". This simply maps the object and method to the correct
      * Controller method
      *
      * @access public
-     * @param  string $object_called
-     * @param  array $arguments The arguments passed to the controller method
+     * @param string $object_called
+     * @param array $arguments The arguments passed to the controller method
      */
     public function _remap($object_called, $arguments = [])
     {
@@ -660,7 +668,7 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // Sure it exists, but can they do anything with it?
-        if (!method_exists($this, $controller_method))
+        if (! method_exists($this, $controller_method))
         {
             $this->response([
                     $this->config->item('rest_status_field_name') => FALSE,
@@ -1109,7 +1117,7 @@ abstract class REST_Controller extends CI_Controller {
      * Check if the requests to a controller method exceed a limit
      *
      * @access protected
-     * @param  string $controller_method The method being called
+     * @param string $controller_method The method being called
      * @return bool TRUE the call limit is below the threshold; otherwise, FALSE
      */
     protected function _check_limit($controller_method)
@@ -1685,8 +1693,8 @@ abstract class REST_Controller extends CI_Controller {
      * prevented
      *
      * @access protected
-     * @param  string $value Input data
-     * @param  bool $xss_clean Whether to apply XSS filtering
+     * @param string $value Input data
+     * @param bool $xss_clean Whether to apply XSS filtering
      * @return string
      */
     protected function _xss_clean($value, $xss_clean)
@@ -1715,8 +1723,8 @@ abstract class REST_Controller extends CI_Controller {
      * Perform LDAP Authentication
      *
      * @access protected
-     * @param  string $username The username to validate
-     * @param  string $password The password to validate
+     * @param string $username The username to validate
+     * @param string $password The password to validate
      * @return bool
      */
     protected function _perform_ldap_auth($username = '', $password = NULL)
@@ -1810,8 +1818,8 @@ abstract class REST_Controller extends CI_Controller {
      * Perform Library Authentication - Override this function to change the way the library is called
      *
      * @access protected
-     * @param  string $username The username to validate
-     * @param  string $password The password to validate
+     * @param string $username The username to validate
+     * @param string $password The password to validate
      * @return bool
      */
     protected function _perform_library_auth($username = '', $password = NULL)
@@ -1849,8 +1857,8 @@ abstract class REST_Controller extends CI_Controller {
      * Check if the user is logged in
      *
      * @access protected
-     * @param  string $username The user's name
-     * @param  bool|string $password The user's password
+     * @param string $username The user's name
+     * @param bool|string $password The user's password
      * @return bool
      */
     protected function _check_login($username = NULL, $password = FALSE)
@@ -2154,6 +2162,16 @@ abstract class REST_Controller extends CI_Controller {
             return TRUE;
         }
 
+        //check if the key has all_access
+        $accessRow = $this->rest->db
+            ->where('key', $this->rest->key)
+            ->get($this->config->item('rest_access_table'))->row_array();
+
+        if (!empty($accessRow) && !empty($accessRow['all_access']))
+        {
+        	return TRUE;
+        }
+
         // Fetch controller based on path and controller name
         $controller = implode(
             '/', [
@@ -2216,5 +2234,4 @@ abstract class REST_Controller extends CI_Controller {
             exit;
         }
     }
-
 }

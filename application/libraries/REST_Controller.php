@@ -704,6 +704,13 @@ abstract class REST_Controller extends CI_Controller {
             }
         }
 
+        //check request limit by ip without login
+        elseif ($this->config->item('rest_limits_method') == "IP_ADDRESS" && $this->config->item('rest_enable_limits') && $this->_check_limit($controller_method) === FALSE)
+        {
+            $response = [$this->config->item('rest_status_field_name') => FALSE, $this->config->item('rest_message_field_name') => $this->lang->line('text_rest_ip_address_time_limit')];
+            $this->response($response, self::HTTP_UNAUTHORIZED);
+        }
+
         // No key stuff, but record that stuff is happening
         elseif ($this->config->item('rest_enable_logging') && $log_method)
         {
@@ -999,16 +1006,7 @@ abstract class REST_Controller extends CI_Controller {
         // Find the key from server or arguments
         if (($key = isset($this->_args[$api_key_variable]) ? $this->_args[$api_key_variable] : $this->input->server($key_name)))
         {
-            //if you have a field to check if the API KEY provided by the user is activated or not 
-            //(in case you quickly want to deactivate specific users)
-            // you can also perform an extra check for this
-            
-            $existsactive = $this->db->query("SELECT api_key_activated FROM api_keys WHERE api_key = '".$key."' ");
-            // Using the Query builder method. This will only work if you have a column named activated in the api_key table.
-            //If you also want to add this as a config item replace the get('activated') with $this->config->item('rest_key_activated_column').
-            $existsactive = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get('activated')->result();
-            $isactive = $existsactive->result();
-            if ( ! ($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_keys_table'))->row() ) || $isactive[0]->api_key_activated == 'no' )
+            if ( ! ($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_keys_table'))->row()))
             {
                 return FALSE;
             }
@@ -1138,16 +1136,21 @@ abstract class REST_Controller extends CI_Controller {
             return TRUE;
         }
 
+        $api_key = isset($this->rest->key) ? $this->rest->key : '';
+
         switch ($this->config->item('rest_limits_method'))
         {
+          case 'IP_ADDRESS':
+            $limited_uri = 'ip-address:' .$this->input->ip_address();
+            $api_key = $this->input->ip_address();
+            break;
+
           case 'API_KEY':
-            $limited_uri = 'api-key:' . (isset($this->rest->key) ? $this->rest->key : '');
-            $limited_method_name = isset($this->rest->key) ? $this->rest->key : '';
+            $limited_uri = 'api-key:' . $api_key;
             break;
 
           case 'METHOD_NAME':
             $limited_uri = 'method-name:' . $controller_method;
-            $limited_method_name =  $controller_method;
             break;
 
           case 'ROUTED_URL':
@@ -1158,25 +1161,24 @@ abstract class REST_Controller extends CI_Controller {
                 $limited_uri = substr($limited_uri,0, -strlen($this->response->format) - 1);
             }
             $limited_uri = 'uri:'.$limited_uri.':'.$this->request->method; // It's good to differentiate GET from PUT
-            $limited_method_name = $controller_method;
             break;
         }
 
-        if (isset($this->methods[$limited_method_name]['limit']) === FALSE )
+        if (isset($this->methods[$controller_method]['limit']) === FALSE )
         {
             // Everything is fine
             return TRUE;
         }
 
         // How many times can you get to this method in a defined time_limit (default: 1 hour)?
-        $limit = $this->methods[$limited_method_name]['limit'];
+        $limit = $this->methods[$controller_method]['limit'];
 
-        $time_limit = (isset($this->methods[$limited_method_name]['time']) ? $this->methods[$limited_method_name]['time'] : 3600); // 3600 = 60 * 60
+        $time_limit = (isset($this->methods[$controller_method]['time']) ? $this->methods[$controller_method]['time'] : 3600); // 3600 = 60 * 60
 
         // Get data about a keys' usage and limit to one row
         $result = $this->rest->db
             ->where('uri', $limited_uri)
-            ->where('api_key', $this->rest->key)
+            ->where('api_key', $api_key)
             ->get($this->config->item('rest_limits_table'))
             ->row();
 
@@ -1186,7 +1188,7 @@ abstract class REST_Controller extends CI_Controller {
             // Create a new row for the following key
             $this->rest->db->insert($this->config->item('rest_limits_table'), [
                 'uri' => $limited_uri,
-                'api_key' => isset($this->rest->key) ? $this->rest->key : '',
+                'api_key' =>$api_key,
                 'count' => 1,
                 'hour_started' => time()
             ]);
@@ -1198,7 +1200,7 @@ abstract class REST_Controller extends CI_Controller {
             // Reset the started period and count
             $this->rest->db
                 ->where('uri', $limited_uri)
-                ->where('api_key', isset($this->rest->key) ? $this->rest->key : '')
+                ->where('api_key', $api_key)
                 ->set('hour_started', time())
                 ->set('count', 1)
                 ->update($this->config->item('rest_limits_table'));
@@ -1216,7 +1218,7 @@ abstract class REST_Controller extends CI_Controller {
             // Increase the count by one
             $this->rest->db
                 ->where('uri', $limited_uri)
-                ->where('api_key', $this->rest->key)
+                ->where('api_key', $api_key)
                 ->set('count', 'count + 1', FALSE)
                 ->update($this->config->item('rest_limits_table'));
         }

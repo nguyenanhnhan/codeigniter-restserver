@@ -3,7 +3,11 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 // This can be removed if you use __autoload() in config.php OR use Modular Extensions
+/** @noinspection PhpIncludeInspection */
 require APPPATH . '/libraries/REST_Controller.php';
+
+// use namespace
+use Restserver\Libraries\REST_Controller;
 
 /**
  * Keys Controller
@@ -232,7 +236,7 @@ class Key extends REST_Controller {
 
     private function _get_key($key)
     {
-        return $this->db
+        return $this->rest->db
             ->where(config_item('rest_key_column'), $key)
             ->get(config_item('rest_keys_table'))
             ->row();
@@ -240,7 +244,7 @@ class Key extends REST_Controller {
 
     private function _key_exists($key)
     {
-        return $this->db
+        return $this->rest->db
             ->where(config_item('rest_key_column'), $key)
             ->count_all_results(config_item('rest_keys_table')) > 0;
     }
@@ -250,21 +254,21 @@ class Key extends REST_Controller {
         $data[config_item('rest_key_column')] = $key;
         $data['date_created'] = function_exists('now') ? now() : time();
 
-        return $this->db
+        return $this->rest->db
             ->set($data)
             ->insert(config_item('rest_keys_table'));
     }
 
     private function _update_key($key, $data)
     {
-        return $this->db
+        return $this->rest->db
             ->where(config_item('rest_key_column'), $key)
             ->update(config_item('rest_keys_table'), $data);
     }
 
     private function _delete_key($key)
     {
-        return $this->db
+        return $this->rest->db
             ->where(config_item('rest_key_column'), $key)
             ->delete(config_item('rest_keys_table'));
     }

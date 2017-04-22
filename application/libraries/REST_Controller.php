@@ -1,4 +1,8 @@
 <?php
+namespace Restserver\Libraries;
+
+use Exception;
+use stdClass;
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
@@ -14,7 +18,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @link            https://github.com/chriskacerguis/codeigniter-restserver
  * @version         3.0.0
  */
-abstract class REST_Controller extends CI_Controller {
+abstract class REST_Controller extends \CI_Controller {
 
     // Note: Only the widely used HTTP status codes are documented
 
@@ -285,16 +289,16 @@ abstract class REST_Controller extends CI_Controller {
     /**
      * The start of the response time from the server
      *
-     * @var string
+     * @var number
      */
-    protected $_start_rtime = '';
+    protected $_start_rtime;
 
     /**
      * The end of the response time from the server
      *
-     * @var string
+     * @var number
      */
-    protected $_end_rtime = '';
+    protected $_end_rtime;
 
     /**
      * List all supported methods, the first will be the default format
@@ -375,7 +379,6 @@ abstract class REST_Controller extends CI_Controller {
      * @access public
      * @param string $config Configuration filename minus the file extension
      * e.g: my_rest.php is passed as 'my_rest'
-     * @return void
      */
     public function __construct($config = 'rest')
     {
@@ -431,7 +434,7 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // Load the language file
-        $this->lang->load('rest_controller', $language);
+        $this->lang->load('rest_controller', $language, FALSE, TRUE, __DIR__."/../");
 
         // Initialise the response, request and rest objects
         $this->request = new stdClass();
@@ -476,6 +479,12 @@ abstract class REST_Controller extends CI_Controller {
         $this->request->body = NULL;
 
         $this->{'_parse_' . $this->request->method}();
+        
+        // Fix parse method return arguments null
+        if($this->{'_'.$this->request->method.'_args'} === null)
+        {
+            $this->{'_'.$this->request->method.'_args'} = [];
+        }
 
         // Now we know all about our request, let's try and parse the body if it exists
         if ($this->request->format && $this->request->body)
@@ -568,7 +577,7 @@ abstract class REST_Controller extends CI_Controller {
     }
 
     /**
-     * Deconstructor
+     * De-constructor
      *
      * @author Chris Kacerguis
      * @access public
@@ -590,7 +599,7 @@ abstract class REST_Controller extends CI_Controller {
      * Checks to see if we have everything we need to run this library.
      *
      * @access protected
-     * @return Exception
+     * @throws Exception
      */
     protected function preflight_checks()
     {
@@ -632,6 +641,11 @@ abstract class REST_Controller extends CI_Controller {
         $object_called = preg_replace('/^(.*)\.(?:'.implode('|', array_keys($this->_supported_formats)).')$/', '$1', $object_called);
 
         $controller_method = $object_called.'_'.$this->request->method;
+	    // Does this method exist? If not, try executing an index method
+	    if (!method_exists($this, $controller_method)) {
+		    $controller_method = "index_" . $this->request->method;
+		    array_unshift($arguments, $object_called);
+	    }
 
         // Do we want to log this method (if allowed by config)?
         $log_method = ! (isset($this->methods[$controller_method]['log']) && $this->methods[$controller_method]['log'] === FALSE);
@@ -645,6 +659,11 @@ abstract class REST_Controller extends CI_Controller {
             if ($this->config->item('rest_enable_logging') && $log_method)
             {
                 $this->_log_request();
+            }
+            
+            // fix cross site to option request error 
+            if($this->request->method == 'options') {
+                exit;
             }
 
             $this->response([
@@ -683,7 +702,7 @@ abstract class REST_Controller extends CI_Controller {
             if ($this->config->item('rest_enable_limits') && $this->_check_limit($controller_method) === FALSE)
             {
                 $response = [$this->config->item('rest_status_field_name') => FALSE, $this->config->item('rest_message_field_name') => $this->lang->line('text_rest_api_key_time_limit')];
-                $this->response($response, self::HTTP_UNAUTHORIZED);
+                return $this->response($response, self::HTTP_UNAUTHORIZED);
             }
 
             // If no level is set use 0, they probably aren't using permissions
@@ -700,7 +719,7 @@ abstract class REST_Controller extends CI_Controller {
             {
                 // They don't have good enough perms
                 $response = [$this->config->item('rest_status_field_name') => FALSE, $this->config->item('rest_message_field_name') => $this->lang->line('text_rest_api_key_permissions')];
-                $this->response($response, self::HTTP_UNAUTHORIZED);
+                return $this->response($response, self::HTTP_UNAUTHORIZED);
             }
         }
 
@@ -708,7 +727,7 @@ abstract class REST_Controller extends CI_Controller {
         elseif ($this->config->item('rest_limits_method') == "IP_ADDRESS" && $this->config->item('rest_enable_limits') && $this->_check_limit($controller_method) === FALSE)
         {
             $response = [$this->config->item('rest_status_field_name') => FALSE, $this->config->item('rest_message_field_name') => $this->lang->line('text_rest_ip_address_time_limit')];
-            $this->response($response, self::HTTP_UNAUTHORIZED);
+            return $this->response($response, self::HTTP_UNAUTHORIZED);
         }
 
         // No key stuff, but record that stuff is happening
@@ -724,14 +743,13 @@ abstract class REST_Controller extends CI_Controller {
         }
         catch (Exception $ex)
         {
+            if ($this->config->item('rest_handle_exceptions') === FALSE) {
+                throw $ex;
+            }
+
             // If the method doesn't exist, then the error will be caught and an error response shown
-            $this->response([
-                    $this->config->item('rest_status_field_name') => FALSE,
-                    $this->config->item('rest_message_field_name') => [
-                        'classname' => get_class($ex),
-                        'message' => $ex->getMessage()
-                    ]
-                ], self::HTTP_INTERNAL_SERVER_ERROR);
+	        $_error = &load_class('Exceptions', 'core');
+	        $_error->show_exception($ex);
         }
     }
 
@@ -741,11 +759,11 @@ abstract class REST_Controller extends CI_Controller {
      * @access public
      * @param array|NULL $data Data to output to the user
      * @param int|NULL $http_code HTTP status code
-     * @param bool $continue TRUE to flush the response to the client and continue
      * running the script; otherwise, exit
      */
-    public function response($data = NULL, $http_code = NULL, $continue = FALSE)
+    public function response($data = NULL, $http_code = NULL)
     {
+		ob_start();
         // If the HTTP status is not NULL, then cast as an integer
         if ($http_code !== NULL)
         {
@@ -773,7 +791,7 @@ abstract class REST_Controller extends CI_Controller {
                 $output = $this->format->factory($data)->{'to_' . $this->response->format}();
 
                 // An array must be parsed as a string, so as not to cause an array to string error
-                // Json is the most appropriate form for such a datatype
+                // Json is the most appropriate form for such a data type
                 if ($this->response->format === 'array')
                 {
                     $output = $this->format->factory($output)->{'to_json'}();
@@ -808,12 +826,7 @@ abstract class REST_Controller extends CI_Controller {
         // Output the data
         $this->output->set_output($output);
 
-        if ($continue === FALSE)
-        {
-            // Display the data and exit execution
-            $this->output->_display();
-            exit;
-        }
+        ob_end_flush();
 
         // Otherwise dump the output automatically
     }
@@ -1464,7 +1477,7 @@ abstract class REST_Controller extends CI_Controller {
         }
         else if ($this->input->method() === 'put')
         {
-           // If no filetype is provided, then there are probably just arguments
+           // If no file type is provided, then there are probably just arguments
            $this->_put_args = $this->input->input_stream();
         }
     }
@@ -1514,7 +1527,7 @@ abstract class REST_Controller extends CI_Controller {
         }
         else if ($this->input->method() === 'patch')
         {
-            // If no filetype is provided, then there are probably just arguments
+            // If no file type is provided, then there are probably just arguments
             $this->_patch_args = $this->input->input_stream();
         }
     }
@@ -1932,7 +1945,7 @@ abstract class REST_Controller extends CI_Controller {
         // Get the auth_source config item
         $key = $this->config->item('auth_source');
 
-        // If falsy, then the user isn't logged in
+        // If false, then the user isn't logged in
         if ( ! $this->session->userdata($key))
         {
             // Display an error response
